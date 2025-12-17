@@ -1,0 +1,72 @@
+# =============================================================================
+# EXAMPLE 2: MATRIX STRATEGY
+# =============================================================================
+# Use Case: Test your code across multiple versions/platforms simultaneously
+# Great for libraries that need to support multiple Python/Node versions
+# =============================================================================
+
+name: Matrix Testing
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: ${{ matrix.os }}
+    
+    # -------------------------------------------------------------------------
+    # STRATEGY MATRIX
+    # Creates multiple job instances with different configurations
+    # This example creates 3 OS × 4 Python versions = 12 parallel jobs!
+    # -------------------------------------------------------------------------
+    strategy:
+      # Don't cancel all jobs if one fails
+      fail-fast: false
+      
+      matrix:
+        # Test on multiple operating systems
+        os: [ubuntu-latest, windows-latest, macos-latest]
+        
+        # Test on multiple Python versions
+        python-version: ['3.9', '3.10', '3.11', '3.12']
+        
+        # OPTIONAL: Exclude specific combinations
+        exclude:
+          - os: macos-latest
+            python-version: '3.9'
+        
+        # OPTIONAL: Include additional specific combinations
+        include:
+          - os: ubuntu-latest
+            python-version: '3.12'
+            experimental: true
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Display Python version
+        run: python --version
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Run tests
+        run: pytest tests/ -v
+
+      # Conditional step - only runs for experimental builds
+      - name: Experimental step
+        if: matrix.experimental == true
+        run: echo "This is an experimental build!"
+
+

@@ -1,0 +1,119 @@
+# =============================================================================
+# EXAMPLE 8: DEPLOY TO GITHUB PAGES
+# =============================================================================
+# Use Case: Deploy static websites, documentation, or frontend apps
+# Perfect for: project docs, portfolio sites, React/Vue/Angular apps
+# =============================================================================
+
+name: Deploy to GitHub Pages
+
+on:
+  push:
+    branches: [main]
+  # Allow manual deployment
+  workflow_dispatch:
+
+# -------------------------------------------------------------------------
+# PERMISSIONS
+# Required for GitHub Pages deployment
+# -------------------------------------------------------------------------
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# -------------------------------------------------------------------------
+# CONCURRENCY
+# Prevent multiple deployments running simultaneously
+# -------------------------------------------------------------------------
+concurrency:
+  group: 'pages'
+  cancel-in-progress: true
+
+jobs:
+  # -------------------------------------------------------------------------
+  # JOB 1: BUILD
+  # Generate static site content
+  # -------------------------------------------------------------------------
+  build:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      # -----------------------------------------------------------------------
+      # BUILD DOCUMENTATION
+      # Example using MkDocs (or could be Sphinx, Jekyll, etc.)
+      # -----------------------------------------------------------------------
+      - name: Install documentation tools
+        run: |
+          pip install mkdocs mkdocs-material
+
+      - name: Build documentation
+        run: |
+          # Create sample docs if they don't exist
+          mkdir -p docs
+          echo "# Welcome to My Project" > docs/index.md
+          echo "" >> docs/index.md
+          echo "This is the documentation for the Calculator project." >> docs/index.md
+          echo "" >> docs/index.md
+          echo "## Features" >> docs/index.md
+          echo "- Add numbers" >> docs/index.md
+          echo "- Subtract numbers" >> docs/index.md
+          echo "- Multiply numbers" >> docs/index.md
+          echo "- Divide numbers" >> docs/index.md
+          
+          # Create mkdocs config
+          cat > mkdocs.yml << EOF
+          site_name: Calculator Docs
+          theme:
+            name: material
+          EOF
+          
+          # Build the site
+          mkdocs build
+
+      # -----------------------------------------------------------------------
+      # CONFIGURE PAGES
+      # Set up GitHub Pages
+      # -----------------------------------------------------------------------
+      - name: Setup Pages
+        uses: actions/configure-pages@v4
+
+      # -----------------------------------------------------------------------
+      # UPLOAD ARTIFACT
+      # Package built site for deployment
+      # -----------------------------------------------------------------------
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: './site'
+
+  # -------------------------------------------------------------------------
+  # JOB 2: DEPLOY
+  # Publish to GitHub Pages
+  # -------------------------------------------------------------------------
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    
+    # -----------------------------------------------------------------------
+    # ENVIRONMENT
+    # Special 'github-pages' environment for Pages deployments
+    # -----------------------------------------------------------------------
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
+
+

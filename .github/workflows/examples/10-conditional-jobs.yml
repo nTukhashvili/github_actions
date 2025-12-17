@@ -1,0 +1,179 @@
+# =============================================================================
+# EXAMPLE 10: CONDITIONAL LOGIC & EXPRESSIONS
+# =============================================================================
+# Use Case: Run different jobs/steps based on conditions
+# Perfect for: branch-specific logic, manual triggers, complex workflows
+# =============================================================================
+
+name: Conditional Workflows
+
+on:
+  push:
+    branches: [main, develop, 'feature/**']
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Deployment environment'
+        type: choice
+        options:
+          - development
+          - staging
+          - production
+      skip-tests:
+        description: 'Skip running tests'
+        type: boolean
+        default: false
+
+jobs:
+  # -------------------------------------------------------------------------
+  # JOB 1: SETUP
+  # Determine what to do based on context
+  # -------------------------------------------------------------------------
+  setup:
+    runs-on: ubuntu-latest
+    
+    outputs:
+      is-main: ${{ steps.check.outputs.is-main }}
+      is-feature: ${{ steps.check.outputs.is-feature }}
+      should-deploy: ${{ steps.check.outputs.should-deploy }}
+
+    steps:
+      - name: Analyze context
+        id: check
+        run: |
+          # Check if main branch
+          if [[ "${{ github.ref }}" == "refs/heads/main" ]]; then
+            echo "is-main=true" >> $GITHUB_OUTPUT
+          else
+            echo "is-main=false" >> $GITHUB_OUTPUT
+          fi
+          
+          # Check if feature branch
+          if [[ "${{ github.ref }}" == refs/heads/feature/* ]]; then
+            echo "is-feature=true" >> $GITHUB_OUTPUT
+          else
+            echo "is-feature=false" >> $GITHUB_OUTPUT
+          fi
+          
+          # Determine if should deploy
+          if [[ "${{ github.event_name }}" == "push" && "${{ github.ref }}" == "refs/heads/main" ]]; then
+            echo "should-deploy=true" >> $GITHUB_OUTPUT
+          else
+            echo "should-deploy=false" >> $GITHUB_OUTPUT
+          fi
+
+  # -------------------------------------------------------------------------
+  # JOB 2: TEST
+  # Run tests with conditional steps
+  # -------------------------------------------------------------------------
+  test:
+    runs-on: ubuntu-latest
+    
+    # -----------------------------------------------------------------------
+    # JOB-LEVEL CONDITION
+    # Skip this job if skip-tests input is true
+    # -----------------------------------------------------------------------
+    if: ${{ github.event.inputs.skip-tests != 'true' }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          pip install -r requirements.txt
+
+      # -----------------------------------------------------------------------
+      # CONDITIONAL: Only on Pull Requests
+      # -----------------------------------------------------------------------
+      - name: PR-only step
+        if: github.event_name == 'pull_request'
+        run: |
+          echo "This runs only on Pull Requests"
+          echo "PR Number: ${{ github.event.pull_request.number }}"
+          echo "PR Title: ${{ github.event.pull_request.title }}"
+
+      # -----------------------------------------------------------------------
+      # CONDITIONAL: Only on main branch
+      # -----------------------------------------------------------------------
+      - name: Main branch only step
+        if: github.ref == 'refs/heads/main'
+        run: echo "This runs only on main branch"
+
+      # -----------------------------------------------------------------------
+      # CONDITIONAL: Using contains()
+      # -----------------------------------------------------------------------
+      - name: Feature branch step
+        if: contains(github.ref, 'feature/')
+        run: echo "This runs on feature branches"
+
+      # -----------------------------------------------------------------------
+      # CONDITIONAL: Based on commit message
+      # -----------------------------------------------------------------------
+      - name: Skip if [skip ci] in commit
+        if: "!contains(github.event.head_commit.message, '[skip ci]')"
+        run: |
+          echo "Running tests..."
+          pytest tests/ -v
+
+      # -----------------------------------------------------------------------
+      # CONDITIONAL: Always run (even on failure)
+      # -----------------------------------------------------------------------
+      - name: Cleanup (always runs)
+        if: always()
+        run: echo "Cleanup step - runs even if previous steps fail"
+
+      # -----------------------------------------------------------------------
+      # CONDITIONAL: Only on failure
+      # -----------------------------------------------------------------------
+      - name: On failure notification
+        if: failure()
+        run: echo "Would send failure notification here"
+
+      # -----------------------------------------------------------------------
+      # CONDITIONAL: Only on success
+      # -----------------------------------------------------------------------
+      - name: On success
+        if: success()
+        run: echo "All previous steps succeeded!"
+
+  # -------------------------------------------------------------------------
+  # JOB 3: DEPLOY
+  # Only runs when conditions are met
+  # -------------------------------------------------------------------------
+  deploy:
+    needs: [setup, test]
+    runs-on: ubuntu-latest
+    
+    # Job runs only if:
+    # 1. setup job says should-deploy is true, OR
+    # 2. workflow was manually triggered
+    if: |
+      needs.setup.outputs.should-deploy == 'true' || 
+      github.event_name == 'workflow_dispatch'
+
+    steps:
+      - name: Deploy
+        run: |
+          echo "Deploying to: ${{ github.event.inputs.environment || 'production' }}"
+          echo "Triggered by: ${{ github.event_name }}"
+
+      # -----------------------------------------------------------------------
+      # CONDITIONAL: Based on manual input
+      # -----------------------------------------------------------------------
+      - name: Production-specific step
+        if: github.event.inputs.environment == 'production'
+        run: echo "Running production-specific deployment steps"
+
+      - name: Non-production step
+        if: github.event.inputs.environment != 'production'
+        run: echo "Running non-production deployment"
+
+

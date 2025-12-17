@@ -1,0 +1,91 @@
+# =============================================================================
+# EXAMPLE 3: SCHEDULED/CRON JOBS
+# =============================================================================
+# Use Case: Run tasks on a schedule (nightly builds, weekly reports, etc.)
+# Perfect for: dependency updates, health checks, data backups, cleanup tasks
+# =============================================================================
+
+name: Scheduled Tasks
+
+on:
+  # -------------------------------------------------------------------------
+  # SCHEDULE TRIGGER
+  # Uses cron syntax: minute hour day-of-month month day-of-week
+  # Note: Times are in UTC
+  # -------------------------------------------------------------------------
+  schedule:
+    # Run every day at midnight UTC
+    - cron: '0 0 * * *'
+    
+    # Run every Monday at 9 AM UTC
+    - cron: '0 9 * * 1'
+    
+    # Run every 6 hours
+    - cron: '0 */6 * * *'
+
+  # Also allow manual triggering from GitHub UI
+  workflow_dispatch:
+    inputs:
+      task_type:
+        description: 'Type of task to run'
+        required: true
+        default: 'health-check'
+        type: choice
+        options:
+          - health-check
+          - cleanup
+          - full-backup
+
+jobs:
+  # -------------------------------------------------------------------------
+  # JOB 1: DEPENDENCY CHECK
+  # Check for outdated dependencies weekly
+  # -------------------------------------------------------------------------
+  dependency-check:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Check for outdated packages
+        run: |
+          pip install pip-audit
+          pip-audit || true
+          echo "Dependency check completed at $(date)"
+
+  # -------------------------------------------------------------------------
+  # JOB 2: HEALTH CHECK
+  # Run nightly to ensure everything works
+  # -------------------------------------------------------------------------
+  health-check:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Run health check
+        run: |
+          pip install -r requirements.txt
+          pytest tests/ -v
+          echo "Health check passed at $(date)"
+
+      # Send notification on failure
+      - name: Notify on failure
+        if: failure()
+        run: |
+          echo "Health check failed! Would send notification here."
+          # In real scenarios, you'd use Slack, Discord, or email actions
+
+

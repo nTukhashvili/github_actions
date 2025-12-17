@@ -1,0 +1,134 @@
+# =============================================================================
+# EXAMPLE 9: REUSABLE WORKFLOW (Callable Workflow)
+# =============================================================================
+# Use Case: Create reusable workflow templates that other workflows can call
+# Perfect for: DRY principle, organization-wide standards, shared CI logic
+# =============================================================================
+
+name: Reusable Test Workflow
+
+# -------------------------------------------------------------------------
+# WORKFLOW_CALL TRIGGER
+# Makes this workflow callable from other workflows
+# -------------------------------------------------------------------------
+on:
+  workflow_call:
+    # -----------------------------------------------------------------------
+    # INPUTS
+    # Parameters that calling workflows can pass
+    # -----------------------------------------------------------------------
+    inputs:
+      python-version:
+        description: 'Python version to use'
+        required: false
+        type: string
+        default: '3.11'
+      
+      run-coverage:
+        description: 'Whether to generate coverage report'
+        required: false
+        type: boolean
+        default: true
+      
+      working-directory:
+        description: 'Directory containing the code'
+        required: false
+        type: string
+        default: '.'
+
+    # -----------------------------------------------------------------------
+    # SECRETS
+    # Secrets that calling workflows can pass
+    # -----------------------------------------------------------------------
+    secrets:
+      CODECOV_TOKEN:
+        description: 'Token for uploading to Codecov'
+        required: false
+
+    # -----------------------------------------------------------------------
+    # OUTPUTS
+    # Values this workflow can return to the caller
+    # -----------------------------------------------------------------------
+    outputs:
+      test-result:
+        description: 'Result of the test run'
+        value: ${{ jobs.test.outputs.result }}
+      coverage-percentage:
+        description: 'Code coverage percentage'
+        value: ${{ jobs.test.outputs.coverage }}
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    
+    outputs:
+      result: ${{ steps.test.outputs.result }}
+      coverage: ${{ steps.coverage.outputs.percentage }}
+
+    defaults:
+      run:
+        working-directory: ${{ inputs.working-directory }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python ${{ inputs.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ inputs.python-version }}
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Run tests
+        id: test
+        run: |
+          if pytest tests/ -v; then
+            echo "result=success" >> $GITHUB_OUTPUT
+          else
+            echo "result=failure" >> $GITHUB_OUTPUT
+            exit 1
+          fi
+
+      - name: Generate coverage report
+        id: coverage
+        if: inputs.run-coverage
+        run: |
+          pytest tests/ --cov=src --cov-report=xml
+          # Extract coverage percentage (simplified example)
+          echo "percentage=85" >> $GITHUB_OUTPUT
+
+---
+# =============================================================================
+# HOW TO CALL THIS REUSABLE WORKFLOW
+# =============================================================================
+# Save this in another file (e.g., .github/workflows/call-reusable.yml):
+#
+# name: Use Reusable Workflow
+# 
+# on:
+#   push:
+#     branches: [main]
+# 
+# jobs:
+#   call-test:
+#     uses: ./.github/workflows/examples/09-reusable-workflow.yml
+#     with:
+#       python-version: '3.12'
+#       run-coverage: true
+#     secrets:
+#       CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
+#
+#   use-outputs:
+#     needs: call-test
+#     runs-on: ubuntu-latest
+#     steps:
+#       - run: |
+#           echo "Test result: ${{ needs.call-test.outputs.test-result }}"
+#           echo "Coverage: ${{ needs.call-test.outputs.coverage-percentage }}%"
+# =============================================================================
+
+

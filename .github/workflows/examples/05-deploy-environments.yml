@@ -1,0 +1,132 @@
+# =============================================================================
+# EXAMPLE 5: MULTI-ENVIRONMENT DEPLOYMENT
+# =============================================================================
+# Use Case: Deploy to staging first, then production with approval
+# Perfect for: web apps, APIs, requiring staged rollouts
+# =============================================================================
+
+name: Deploy to Environments
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  # -------------------------------------------------------------------------
+  # JOB 1: BUILD
+  # Build the application and create artifacts
+  # -------------------------------------------------------------------------
+  build:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          pip install -r requirements.txt
+
+      - name: Run tests
+        run: pytest tests/ -v
+
+      # -----------------------------------------------------------------------
+      # ARTIFACTS
+      # Save build outputs to pass between jobs
+      # -----------------------------------------------------------------------
+      - name: Create build artifact
+        run: |
+          mkdir -p dist
+          cp -r src/ dist/
+          echo "Build completed at $(date)" > dist/build-info.txt
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-build
+          path: dist/
+          retention-days: 5
+
+  # -------------------------------------------------------------------------
+  # JOB 2: DEPLOY TO STAGING
+  # Automatic deployment after successful build
+  # -------------------------------------------------------------------------
+  deploy-staging:
+    needs: build  # Wait for build job to complete
+    runs-on: ubuntu-latest
+    
+    # -----------------------------------------------------------------------
+    # ENVIRONMENT
+    # GitHub Environments provide:
+    # - Environment-specific secrets
+    # - Protection rules (required reviewers, wait timers)
+    # - Deployment history tracking
+    # -----------------------------------------------------------------------
+    environment:
+      name: staging
+      url: https://staging.example.com
+
+    steps:
+      - name: Download artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: app-build
+          path: dist/
+
+      - name: Deploy to Staging
+        run: |
+          echo "🚀 Deploying to STAGING environment..."
+          echo "Files to deploy:"
+          ls -la dist/
+          # In real scenario: rsync, kubectl apply, aws s3 sync, etc.
+          echo "✅ Staging deployment complete!"
+
+      - name: Run smoke tests
+        run: |
+          echo "Running smoke tests on staging..."
+          # curl https://staging.example.com/health
+          echo "✅ Smoke tests passed!"
+
+  # -------------------------------------------------------------------------
+  # JOB 3: DEPLOY TO PRODUCTION
+  # Manual approval required (configured in GitHub Environment settings)
+  # -------------------------------------------------------------------------
+  deploy-production:
+    needs: deploy-staging  # Only after staging succeeds
+    runs-on: ubuntu-latest
+    
+    environment:
+      name: production
+      url: https://example.com
+
+    steps:
+      - name: Download artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: app-build
+          path: dist/
+
+      - name: Deploy to Production
+        run: |
+          echo "🚀 Deploying to PRODUCTION environment..."
+          ls -la dist/
+          # In real scenario: rsync, kubectl apply, aws s3 sync, etc.
+          echo "✅ Production deployment complete!"
+
+      # -----------------------------------------------------------------------
+      # POST-DEPLOYMENT
+      # Notify team, update monitoring, etc.
+      # -----------------------------------------------------------------------
+      - name: Notify deployment success
+        run: |
+          echo "📧 Would notify team of successful production deployment"
+          echo "Deployed commit: ${{ github.sha }}"
+          echo "Deployed by: ${{ github.actor }}"
+
+

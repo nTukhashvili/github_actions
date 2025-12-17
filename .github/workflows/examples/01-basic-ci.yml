@@ -1,0 +1,64 @@
+# =============================================================================
+# EXAMPLE 1: BASIC CI PIPELINE
+# =============================================================================
+# Use Case: Run tests automatically when code is pushed or PR is created
+# This is the most common workflow - ensures code quality before merging
+# =============================================================================
+
+name: Basic CI
+
+# -----------------------------------------------------------------------------
+# TRIGGERS (on:)
+# Defines WHEN this workflow runs
+# -----------------------------------------------------------------------------
+on:
+  # Trigger on push to these branches
+  push:
+    branches:
+      - main
+      - develop
+  
+  # Trigger on pull requests targeting these branches
+  pull_request:
+    branches:
+      - main
+
+# -----------------------------------------------------------------------------
+# JOBS
+# A workflow contains one or more jobs that run in parallel by default
+# -----------------------------------------------------------------------------
+jobs:
+  # Job identifier (can be any name)
+  test:
+    # The type of machine to run on
+    # Options: ubuntu-latest, windows-latest, macos-latest
+    runs-on: ubuntu-latest
+
+    # ---------------------------------------------------------------------
+    # STEPS
+    # Sequential tasks within a job
+    # ---------------------------------------------------------------------
+    steps:
+      # Step 1: Checkout code from repository
+      # uses: references a reusable action from GitHub Marketplace
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # Step 2: Set up programming language environment
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      # Step 3: Install dependencies
+      # run: executes shell commands
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      # Step 4: Run tests
+      - name: Run tests
+        run: pytest tests/ -v
+
+

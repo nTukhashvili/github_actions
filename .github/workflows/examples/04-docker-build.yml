@@ -1,0 +1,95 @@
+# =============================================================================
+# EXAMPLE 4: DOCKER BUILD AND PUSH
+# =============================================================================
+# Use Case: Build Docker images and push to container registry
+# Perfect for: microservices, containerized applications, Kubernetes deployments
+# =============================================================================
+
+name: Docker Build & Push
+
+on:
+  push:
+    branches: [main]
+    # Only trigger on version tags
+    tags:
+      - 'v*.*.*'
+  pull_request:
+    branches: [main]
+
+# -------------------------------------------------------------------------
+# ENVIRONMENT VARIABLES
+# Define variables accessible to all jobs
+# -------------------------------------------------------------------------
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    
+    # -----------------------------------------------------------------------
+    # PERMISSIONS
+    # Required for pushing to GitHub Container Registry
+    # -----------------------------------------------------------------------
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # -----------------------------------------------------------------------
+      # DOCKER BUILDX
+      # Advanced Docker builder with caching and multi-platform support
+      # -----------------------------------------------------------------------
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      # -----------------------------------------------------------------------
+      # REGISTRY LOGIN
+      # Authenticate with container registry
+      # Uses GitHub's automatic GITHUB_TOKEN
+      # -----------------------------------------------------------------------
+      - name: Log in to Container Registry
+        if: github.event_name != 'pull_request'
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # -----------------------------------------------------------------------
+      # METADATA EXTRACTION
+      # Automatically generate image tags and labels
+      # -----------------------------------------------------------------------
+      - name: Extract metadata (tags, labels)
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=ref,event=branch
+            type=ref,event=pr
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=sha
+
+      # -----------------------------------------------------------------------
+      # BUILD AND PUSH
+      # Build the Docker image and push to registry
+      # -----------------------------------------------------------------------
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          # Only push on main branch, not on PRs
+          push: ${{ github.event_name != 'pull_request' }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          # Enable layer caching for faster builds
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+
