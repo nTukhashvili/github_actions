@@ -64,4 +64,3 @@ class TestDivide:
 
     def test_divide_floats(self):
         assert divide(7.5, 2.5) == 3.0
-
